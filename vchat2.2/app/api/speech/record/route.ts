@@ -1,10 +1,12 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export async function POST(request: NextRequest) {
   try {
     const { action } = await request.json()
 
-    const response = await fetch(`${process.env.BACKEND_URL}/api/speech/record`, {
+    const response = await fetch(`${BACKEND_URL}/api/speech/record`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
