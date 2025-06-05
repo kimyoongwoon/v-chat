@@ -1,3 +1,4 @@
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -221,13 +222,29 @@ async def startup_event():
     """앱 시작시 초기화"""
     print("VChat Backend API 시작됨")
     
-    # 기본 페르소나가 있으면 자동 선택
-    personas = persona_manager.get_available_personas()
-    if personas:
-        persona_manager.select_persona(personas[0])
-        initialize_services()
-        print(f"기본 페르소나 '{personas[0]}' 선택됨")
+    # Firebase 연결 테스트 및 데이터 로드
+    try:
+        # 페르소나 매니저에서 Firebase 연결 확인
+        if persona_manager.db:
+            print("✅ Firebase 연결 확인됨")
+            # 로컬 데이터가 있고 Firebase가 비어있다면 마이그레이션 제안
+            personas = persona_manager.get_available_personas()
+            if not personas and os.path.exists('data/personas.json'):
+                print("🔄 로컬 데이터를 Firebase로 마이그레이션합니다...")
+                if persona_manager.migrate_local_to_firebase():
+                    personas = persona_manager.get_available_personas()
+        else:
+            print("⚠️ Firebase 연결 실패, 로컬 파일 시스템 사용")
+        
+        # 기본 페르소나가 있으면 자동 선택
+        personas = persona_manager.get_available_personas()
+        if personas:
+            persona_manager.select_persona(personas[0])
+            initialize_services()
+            print(f"기본 페르소나 '{personas[0]}' 선택됨")
+            
+    except Exception as e:
+        print(f"⚠️ 시작 시 오류: {str(e)}")
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
