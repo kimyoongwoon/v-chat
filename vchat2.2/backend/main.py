@@ -8,10 +8,16 @@ import os
 import tempfile
 import uuid
 from typing import Optional, List
+from dotenv import load_dotenv
+
+# .env 파일 로드 (모듈 import 전에)
+load_dotenv()
+
+# 프로젝트 루트 디렉토리를 Python 경로에 추가
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_root)
 
 # 기존 모듈들 import
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'modules'))
-
 from modules.persona_manager import PersonaManager
 from modules.vchat_bot import VChatBot
 from modules.tts_service import VoiceConverter
@@ -221,6 +227,7 @@ async def get_audio_file(filename: str):
 async def startup_event():
     """앱 시작시 초기화"""
     print("VChat Backend API 시작됨")
+    print(f"프로젝트 루트: {project_root}")
     
     # Firebase 연결 테스트 및 데이터 로드
     try:
@@ -229,7 +236,7 @@ async def startup_event():
             print("✅ Firebase 연결 확인됨")
             # 로컬 데이터가 있고 Firebase가 비어있다면 마이그레이션 제안
             personas = persona_manager.get_available_personas()
-            if not personas and os.path.exists('data/personas.json'):
+            if not personas and os.path.exists(os.path.join(project_root, 'data/personas.json')):
                 print("🔄 로컬 데이터를 Firebase로 마이그레이션합니다...")
                 if persona_manager.migrate_local_to_firebase():
                     personas = persona_manager.get_available_personas()

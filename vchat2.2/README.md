@@ -15,27 +15,25 @@ AI 페르소나와 대화할 수 있는 웹 애플리케이션입니다.
 
 ### 1. 의존성 설치
 
-\`\`\`bash
+```bash
+# Node.js 의존성 설치
 npm install
-\`\`\`
+
+# Python 의존성 설치
+pip install -r requirements.txt
+```
 
 ### 2. 환경 변수 설정
 
-`.env.local` 파일을 생성하고 다음 값들을 설정하세요:
+**`.env.local` 파일을 생성**하고 다음 값들을 설정하세요:
 
 ```env
 # NextAuth 설정
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-secret-key-here
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
 
-# Backend URL
-BACKEND_URL=http://localhost:8000
-
-# AI API Keys
-OPENAI_API_KEY=your-openai-api-key
-ELEVENLABS_API_KEY=your-elevenlabs-api-key
+# Backend URL (중요!)
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 
 # Firebase 설정 (Frontend용)
 NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-api-key
@@ -44,53 +42,95 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
 NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
-
-# Firebase 서비스 계정 키 (Backend용, 선택사항)
-FIREBASE_SERVICE_ACCOUNT_KEY=path/to/serviceAccountKey.json
 ```
 
-**중요**:
+**`.env` 파일 확인** (Python 백엔드용):
 
--   `NEXT_PUBLIC_` 접두사가 있는 환경변수는 클라이언트 사이드에서 사용됩니다
--   `FIREBASE_SERVICE_ACCOUNT_KEY`는 서버 사이드(Python backend)에서만 사용됩니다
--   서비스 계정 키가 없어도 Google Cloud 환경에서는 자동으로 인증됩니다
+```env
+# AI API Keys
+OPENAI_API_KEY=your-openai-api-key
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+
+# Firebase 설정 (Backend용)
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+
+# Firebase 서비스 계정 키 (선택사항)
+# FIREBASE_SERVICE_ACCOUNT_KEY=path/to/serviceAccountKey.json
+```
 
 ### 3. Firebase 설정
 
 1.  [Firebase Console](https://console.firebase.google.com/)에서 새 프로젝트 생성
 2.  Firestore Database 활성화
-3.  서비스 계정 키 생성 (선택사항)
-4.  환경 변수에 Firebase 설정 추가
+3.  환경 변수에 Firebase 설정 추가
 
 ### 4. 데이터 마이그레이션 (최초 1회)
 
 로컬 `data/personas.json` 데이터를 Firebase로 마이그레이션:
 
 ```bash
-# 방법 1: 마이그레이션 스크립트 실행
 python scripts/migrate_to_firebase.py
-
-# 방법 2: 직접 실행
-python -c "
-import sys, os
-sys.path.append('modules')
-from persona_manager import PersonaManager
-pm = PersonaManager()
-pm.migrate_local_to_firebase()
-"
 ```
 
-### 5. 백엔드 실행
+### 5. 실행 순서 (중요!)
 
-\`\`\`bash
-npm run backend
-\`\`\`
+**Step 1: Python 백엔드 실행** (먼저 실행)
 
-### 6. 프론트엔드 실행
+```bash
+# 터미널 1
+cd "c:\Users\user\Desktop\NEXT\product day\V-chat\vchat2.2"
+python backend/main.py
+```
 
-\`\`\`bash
+백엔드가 성공적으로 실행되면 다음과 같은 메시지가 표시됩니다:
+
+```
+VChat Backend API 시작됨
+✅ Firebase 연결 확인됨
+INFO:     Started server process [PID]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+**Step 2: 백엔드 연결 확인**
+
+브라우저에서 `http://localhost:8000/docs`에 접속하여 FastAPI Swagger UI가 표시되는지 확인하세요.
+
+**Step 3: 프론트엔드 실행** (별도 터미널)
+
+```bash
+# 터미널 2
+cd "c:\Users\user\Desktop\NEXT\product day\V-chat\vchat2.2"
 npm run dev
-\`\`\`
+```
+
+### 6. 문제 해결
+
+**백엔드 연결 실패 시:**
+
+1. **포트 확인**: 포트 8000이 이미 사용 중인지 확인
+
+    ```bash
+    # Windows
+    netstat -ano | findstr :8000
+
+    # 프로세스 종료 (PID 확인 후)
+    taskkill /PID <PID> /F
+    ```
+
+2. **환경변수 확인**: `.env` 파일에 모든 필수 API 키가 설정되어 있는지 확인
+
+3. **의존성 확인**: Python 패키지가 모두 설치되어 있는지 확인
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+**프론트엔드 연결 실패 시:**
+
+1. **환경변수 확인**: `.env.local` 파일에 `NEXT_PUBLIC_BACKEND_URL`이 설정되어 있는지 확인
+
+2. **재시작**: Next.js 개발 서버 재시작 (환경변수 변경 후)
 
 ## 사용법
 
@@ -124,4 +164,27 @@ personas/
   │   └── few_shot_examples: [...]
   ├── 릴파/
   └── ...
+```
+
+## 포트 정보
+
+-   **Frontend**: http://localhost:3000
+-   **Backend**: http://localhost:8000
+-   **Backend API Docs**: http://localhost:8000/docs
+
+## 주요 명령어
+
+```bash
+# 개발 모드 실행
+npm run dev                    # 프론트엔드
+python backend/main.py         # 백엔드
+
+# 빌드
+npm run build                  # 프론트엔드
+
+# 마이그레이션
+python scripts/migrate_to_firebase.py
+
+# 콘솔 앱 실행
+python main.py
 ```
