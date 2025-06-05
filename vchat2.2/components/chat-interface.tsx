@@ -28,6 +28,8 @@ export default function ChatInterface({
   const [chatMode, setChatMode] = useState<"text-to-text" | "speech-to-speech" | "text-to-speech">("text-to-text")
   const [isRecording, setIsRecording] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -57,7 +59,7 @@ export default function ChatInterface({
     setIsLoading(true)
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -74,7 +76,7 @@ export default function ChatInterface({
 
         // TTS 모드인 경우 음성 재생
         if (chatMode === "text-to-speech" && data.audio_url) {
-          const audio = new Audio(data.audio_url)
+          const audio = new Audio(`${process.env.NEXT_PUBLIC_BACKEND_URL}${data.audio_url}`)
           audio.play()
         }
       } else {
@@ -96,40 +98,121 @@ export default function ChatInterface({
 
   const handleVoiceRecord = async () => {
     if (isRecording) {
+      // 녹음 중지
       setIsRecording(false)
-      try {
-        const response = await fetch("/api/speech/record", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "stop" }),
-        })
-
-        const data = await response.json()
-        if (data.success && data.transcription) {
-          handleTextSubmit(data.transcription)
-        }
-      } catch (error) {
-        console.error("Voice recording error:", error)
+      
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop()
       }
     } else {
-      setIsRecording(true)
+      // 녹음 시작
       try {
-        await fetch("/api/speech/record", {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true
+          } 
+        })
+        
+        audioChunksRef.current = []
+        
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm;codecs=opus'
+        })
+        
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data)
+          }
+        }
+        
+        mediaRecorder.onstop = async () => {
+          // 스트림 정리
+          stream.getTracks().forEach(track => track.stop())
+          
+          if (audioChunksRef.current.length > 0) {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+            await uploadAudioForTranscription(audioBlob)
+          }
+        }
+        
+        mediaRecorderRef.current = mediaRecorder
+        mediaRecorder.start(1000) // 1초마다 데이터 수집
+        setIsRecording(true)
+        
+      } catch (error) {
+        console.error("마이크 접근 권한이 필요합니다:", error)
+        alert("마이크 접근 권한을 허용해주세요.")
+      }
+    }
+  }
+
+  const uploadAudioForTranscription = async (audioBlob: Blob) => {
+    try {
+      setIsLoading(true)
+      console.log('🎤 음성 파일 업로드 시작:', audioBlob.size, 'bytes')
+      
+      const formData = new FormData()
+      formData.append('file', audioBlob, 'recording.webm')
+      
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+      console.log('📡 Backend URL:', `${backendUrl}/api/speech/upload`)
+      
+      const response = await fetch(`${backendUrl}/api/speech/upload`, {
+        method: 'POST',
+        body: formData,
+      })
+      
+      const data = await response.json()
+      console.log('📝 STT 결과:', data)
+      
+      if (data.success && data.transcription) {
+        // 음성 인식 결과를 텍스트로 표시하고 AI 응답 요청
+        console.log('✅ 음성 인식 성공:', data.transcription)
+        addMessage("user", `🎤 ${data.transcription}`)
+        
+        // AI 응답 요청
+        const chatResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start" }),
+          body: JSON.stringify({
+            message: data.transcription,
+            mode: chatMode,
+            persona: selectedPersona,
+          }),
         })
-      } catch (error) {
-        console.error("Voice recording start error:", error)
-        setIsRecording(false)
+
+        const chatData = await chatResponse.json()
+
+        if (chatData.success) {
+          addMessage("assistant", chatData.response)
+
+          // 음성 모드인 경우 TTS 재생
+          if (chatMode === "speech-to-speech" && chatData.audio_url) {
+            const audio = new Audio(`${process.env.NEXT_PUBLIC_BACKEND_URL}${chatData.audio_url}`)
+            audio.play()
+          }
+        } else {
+          addMessage("assistant", "죄송해요, 응답을 생성하는데 문제가 발생했어요.")
+        }
+      } else {
+        console.error("음성 인식 실패:", data)
+        addMessage("assistant", "음성을 인식하지 못했어요. 다시 시도해주세요.")
       }
+    } catch (error) {
+      console.error("음성 업로드 오류:", error)
+      addMessage("assistant", "음성 처리 중 오류가 발생했어요. 다시 시도해주세요.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const playLastResponse = () => {
     const lastAssistantMessage = messages.filter((m) => m.type === "assistant").pop()
     if (lastAssistantMessage) {
-      fetch("/api/speech/tts", {
+      fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/speech/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: lastAssistantMessage.content }),
@@ -137,7 +220,7 @@ export default function ChatInterface({
         .then((response) => response.json())
         .then((data) => {
           if (data.success && data.audio_url) {
-            const audio = new Audio(data.audio_url)
+            const audio = new Audio(`${process.env.NEXT_PUBLIC_BACKEND_URL}${data.audio_url}`)
             audio.play()
           }
         })
@@ -255,13 +338,24 @@ export default function ChatInterface({
                 type="button"
                 onClick={handleVoiceRecord}
                 disabled={isLoading}
-                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 ${
                   isRecording 
                     ? "bg-red-600 text-white hover:bg-red-700 animate-pulse shadow-lg" 
                     : "bg-purple-600 text-white hover:bg-purple-700 shadow-md hover:shadow-lg"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
+                title={isRecording ? "녹음 중지 및 전송" : "음성 녹음 시작"}
               >
-                {isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                {isRecording ? (
+                  <>
+                    <MicOff className="h-5 w-5" />
+                    <span className="text-sm">중지</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="h-5 w-5" />
+                    <span className="text-sm">녹음</span>
+                  </>
+                )}
               </button>
             ) : (
               <button 
