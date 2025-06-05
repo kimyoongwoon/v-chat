@@ -81,7 +81,9 @@ export default function ChatPage() {
           {currentMode === "chat" ? (
             <ChatInterface selectedPersona={selectedPersona} />
           ) : (
-            <PersonaCreator onPersonaCreated={handlePersonaCreated} />
+            <div className="min-h-screen bg-white pt-16">
+              <PersonaCreator onPersonaCreated={handlePersonaCreated} />
+            </div>
           )}
         </main>
       </div>
