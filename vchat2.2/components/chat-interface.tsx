@@ -19,10 +19,16 @@ interface Message {
 
 interface ChatInterfaceProps {
   selectedPersona: string
+  initialMessages: Message[]
+  onMessagesUpdate: (messages: Message[]) => void
 }
 
-export default function ChatInterface({ selectedPersona }: ChatInterfaceProps) {
-  const [messages, setMessages] = useState<Message[]>([])
+export default function ChatInterface({
+  selectedPersona,
+  initialMessages,
+  onMessagesUpdate,
+}: ChatInterfaceProps) {
+  const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [chatMode, setChatMode] = useState<"text-to-text" | "speech-to-speech" | "text-to-speech">("text-to-text")
@@ -34,6 +40,11 @@ export default function ChatInterface({ selectedPersona }: ChatInterfaceProps) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }, [messages])
+
+  useEffect(() => {
+    // messages 상태가 변경될 때마다 부모에게 알림
+    onMessagesUpdate(messages)
+  }, [messages, onMessagesUpdate])
 
   const addMessage = (type: "user" | "assistant", content: string) => {
     const newMessage: Message = {

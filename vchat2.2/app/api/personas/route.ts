@@ -12,6 +12,7 @@ export async function GET() {
             headers: {
                 "Content-Type": "application/json",
             },
+            cache: 'no-store',
             signal: AbortSignal.timeout(10000), // 10초 타임아웃
         });
 
