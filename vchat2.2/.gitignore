@@ -31,3 +31,5 @@ next-env.d.ts
 .env.development.local
 .env.test.local
 .env.production.local
+
+vchat-22d18-firebase-adminsdk-fbsvc-907605e59b.json

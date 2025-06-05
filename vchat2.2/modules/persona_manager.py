@@ -4,41 +4,186 @@ import requests
 from bs4 import BeautifulSoup
 import openai
 from dotenv import load_dotenv
+import firebase_admin
+from firebase_admin import credentials, firestore
+from typing import Dict, List, Optional
 
 load_dotenv()
 
 class PersonaManager:
-    """페르소나 데이터 관리 클래스"""
+    """페르소나 데이터 관리 클래스 - Firebase Firestore 연동"""
     
-    def __init__(self, personas_file='data/personas.json'):
+    def __init__(self, personas_file='data/personas.json', auto_load=True):
         self.personas_file = personas_file
         self.personas_data = {}
         self.current_persona = None
+        
         # OpenAI 클라이언트 초기화
         self.openai_client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-        self.load_personas()
+        
+        # Firebase 초기화
+        self._initialize_firebase()
+        
+        # 자동 로드 옵션 (마이그레이션 시에는 False로 설정)
+        if auto_load:
+            # 페르소나 데이터 로드 (Firebase 우선, 로컬 백업)
+            self.load_personas()
+    
+    def _initialize_firebase(self):
+        """Firebase 초기화"""
+        try:
+            if not firebase_admin._apps:
+                # Firebase 서비스 계정 키 파일 경로 사용
+                cred_path = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY')
+                if cred_path and os.path.exists(cred_path):
+                    cred = credentials.Certificate(cred_path)
+                    firebase_admin.initialize_app(cred)
+                else:
+                    # 환경변수에서 Firebase 설정 정보를 사용하여 초기화
+                    project_id = os.getenv('NEXT_PUBLIC_FIREBASE_PROJECT_ID')
+                    if project_id:
+                        # Application Default Credentials 또는 환경변수 기반 초기화
+                        firebase_admin.initialize_app(options={
+                            'projectId': project_id
+                        })
+                    else:
+                        # 기본 Application Default Credentials 사용
+                        firebase_admin.initialize_app()
+            
+            self.db = firestore.client()
+            print("✅ Firebase 초기화 완료")
+            
+        except Exception as e:
+            print(f"⚠️ Firebase 초기화 실패: {str(e)}")
+            print("📁 로컬 파일 시스템을 사용합니다.")
+            self.db = None
     
     def load_personas(self):
-        """페르소나 데이터 로드"""
+        """페르소나 데이터 로드 (Firebase 우선, 로컬 백업)"""
+        try:
+            if self.db:
+                # Firebase에서 로드
+                self._load_from_firebase()
+            else:
+                # 로컬 파일에서 로드
+                self._load_from_local()
+                
+        except Exception as e:
+            print(f"⚠️ 페르소나 로드 실패: {str(e)}")
+            # Firebase 실패 시 로컬 백업 시도
+            if self.db:
+                print("📁 로컬 백업 파일에서 로드 시도...")
+                self._load_from_local()
+    
+    def _load_from_firebase(self):
+        """Firebase에서 페르소나 데이터 로드"""
+        try:
+            personas_ref = self.db.collection('personas')
+            docs = personas_ref.stream()
+            
+            self.personas_data = {}
+            for doc in docs:
+                self.personas_data[doc.id] = doc.to_dict()
+            
+            print(f"✅ Firebase에서 {len(self.personas_data)}개 페르소나 로드 완료")
+            
+            # 로컬 백업 저장
+            self._save_local_backup()
+            
+        except Exception as e:
+            print(f"❌ Firebase 로드 실패: {str(e)}")
+            raise
+    
+    def _load_from_local(self):
+        """로컬 파일에서 페르소나 데이터 로드"""
         try:
             if os.path.exists(self.personas_file):
                 with open(self.personas_file, 'r', encoding='utf-8') as f:
                     self.personas_data = json.load(f)
+                print(f"✅ 로컬에서 {len(self.personas_data)}개 페르소나 로드 완료")
             else:
                 print(f"❌ 페르소나 데이터 파일을 찾을 수 없습니다: {self.personas_file}")
                 self.personas_data = {}
         except Exception as e:
-            print(f"⚠️ 페르소나 데이터 로드 오류: {str(e)}")
+            print(f"⚠️ 로컬 페르소나 데이터 로드 오류: {str(e)}")
             self.personas_data = {}
     
     def save_personas(self):
-        """페르소나 데이터 저장"""
+        """페르소나 데이터 저장 (Firebase 우선, 로컬 백업)"""
+        try:
+            if self.db:
+                self._save_to_firebase()
+            
+            # 항상 로컬 백업 저장
+            self._save_local_backup()
+            
+        except Exception as e:
+            print(f"⚠️ 페르소나 데이터 저장 오류: {str(e)}")
+    
+    def _save_to_firebase(self):
+        """Firebase에 페르소나 데이터 저장"""
+        try:
+            for persona_name, persona_data in self.personas_data.items():
+                persona_ref = self.db.collection('personas').document(persona_name)
+                persona_ref.set(persona_data)
+            
+            print(f"✅ Firebase에 {len(self.personas_data)}개 페르소나 저장 완료")
+            
+        except Exception as e:
+            print(f"❌ Firebase 저장 실패: {str(e)}")
+            raise
+    
+    def _save_local_backup(self):
+        """로컬 백업 파일 저장"""
         try:
             os.makedirs('data', exist_ok=True)
             with open(self.personas_file, 'w', encoding='utf-8') as f:
                 json.dump(self.personas_data, f, ensure_ascii=False, indent=2)
+            print("✅ 로컬 백업 저장 완료")
         except Exception as e:
-            print(f"⚠️ 페르소나 데이터 저장 오류: {str(e)}")
+            print(f"⚠️ 로컬 백업 저장 오류: {str(e)}")
+    
+    def migrate_local_to_firebase(self):
+        """로컬 데이터를 Firebase로 마이그레이션 - 직접 파일 읽기"""
+        if not self.db:
+            print("❌ Firebase가 초기화되지 않았습니다.")
+            return False
+        
+        try:
+            # 로컬 파일에서 직접 데이터 로드 (메모리 데이터 무시)
+            if os.path.exists(self.personas_file):
+                print(f"📁 로컬 파일에서 데이터 읽는 중: {self.personas_file}")
+                with open(self.personas_file, 'r', encoding='utf-8') as f:
+                    local_data = json.load(f)
+                
+                if not local_data:
+                    print("❌ 로컬 파일이 비어있습니다.")
+                    return False
+                
+                print(f"🔄 {len(local_data)}개 페르소나를 Firebase로 마이그레이션 중...")
+                
+                # Firebase에 저장
+                for persona_name, persona_data in local_data.items():
+                    try:
+                        persona_ref = self.db.collection('personas').document(persona_name)
+                        persona_ref.set(persona_data)
+                        print(f"✅ '{persona_name}' 마이그레이션 완료")
+                    except Exception as e:
+                        print(f"❌ '{persona_name}' 마이그레이션 실패: {str(e)}")
+                        continue
+                
+                # 메모리에 로드
+                self.personas_data = local_data
+                
+                print("🎉 마이그레이션 완료!")
+                return True
+            else:
+                print("❌ 로컬 페르소나 파일을 찾을 수 없습니다.")
+                return False
+                
+        except Exception as e:
+            print(f"❌ 마이그레이션 실패: {str(e)}")
+            return False
     
     def get_available_personas(self):
         """사용 가능한 페르소나 목록 반환"""
@@ -173,7 +318,7 @@ class PersonaManager:
             }
             
             self.personas_data[name] = full_persona_data
-            self.save_personas()
+            self.save_personas()  # Firebase + 로컬 백업 저장
             
             print(f"✅ '{name}' 페르소나가 성공적으로 생성되었습니다!")
             return True
