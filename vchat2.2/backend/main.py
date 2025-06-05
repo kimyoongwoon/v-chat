@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -29,9 +29,9 @@ app = FastAPI(title="VChat Backend API")
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js 개발 서버
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # Next.js 개발 서버
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -158,25 +158,59 @@ async def chat(request: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/speech/record")
-async def handle_speech_recording(request: SpeechRequest):
-    """음성 녹음 처리"""
+@app.post("/api/speech/upload")
+async def upload_audio_for_transcription(file: UploadFile = File(...)):
+    """업로드된 오디오 파일을 텍스트로 변환"""
     try:
         if not stt_service:
             raise HTTPException(status_code=400, detail="STT 서비스가 초기화되지 않았습니다")
         
-        if request.action == "start":
-            # 실제 구현에서는 WebSocket이나 다른 방식으로 실시간 처리
-            return {"success": True, "message": "녹음 시작"}
+        # 지원되는 오디오 형식 확인
+        allowed_types = ["audio/wav", "audio/mpeg", "audio/mp4", "audio/webm", "audio/ogg"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(status_code=400, detail="지원되지 않는 오디오 형식입니다")
         
-        elif request.action == "stop":
-            # 녹음 중지 및 텍스트 변환
-            # 실제 구현에서는 녹음된 오디오를 처리
-            transcription = "음성 인식 결과"  # 실제로는 STT 처리 결과
+        # 임시 파일에 저장
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+        temp_filename = temp_file.name
+        
+        # 파일 내용 읽기 및 저장
+        contents = await file.read()
+        temp_file.write(contents)
+        temp_file.close()
+        
+        # STT 처리
+        transcription = stt_service.transcribe_audio_file(temp_filename)
+        
+        # 임시 파일 삭제
+        try:
+            os.unlink(temp_filename)
+        except:
+            pass
+        
+        if transcription and not transcription.startswith("❌"):
             return {
                 "success": True,
                 "transcription": transcription
             }
+        else:
+            raise HTTPException(status_code=500, detail=transcription or "음성 인식에 실패했습니다")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"음성 처리 중 오류: {str(e)}")
+
+@app.post("/api/speech/record")
+async def handle_speech_recording(request: SpeechRequest):
+    """음성 녹음 상태 관리 (호환성 유지)"""
+    try:
+        if request.action == "start":
+            return {"success": True, "message": "녹음 시작 - 클라이언트에서 처리됩니다"}
+        elif request.action == "stop":
+            return {"success": True, "message": "녹음 중지 - /api/speech/upload로 파일을 업로드하세요"}
+        else:
+            raise HTTPException(status_code=400, detail="잘못된 액션입니다")
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
