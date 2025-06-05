@@ -1,0 +1,13 @@
+openai>=1.0.0
+python-dotenv>=1.0.0
+pyaudio>=0.2.11
+numpy>=1.21.0
+elevenlabs>=0.2.24
+pydub>=0.25.1
+simpleaudio>=1.0.4
+tiktoken>=0.5.0
+requests>=2.25.0
+beautifulsoup4>=4.9.0
+
+# Optional: For better audio handling
+soundfile>=0.12.1
