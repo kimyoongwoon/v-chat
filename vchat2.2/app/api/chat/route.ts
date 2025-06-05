@@ -1,29 +1,35 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server";
+
+const BACKEND_URL =
+    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export async function POST(request: NextRequest) {
-  try {
-    const { message, mode, persona } = await request.json()
+    try {
+        const body = await request.json();
 
-    const response = await fetch(`${process.env.BACKEND_URL}/api/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message,
-        mode,
-        persona,
-      }),
-    })
+        const response = await fetch(`${BACKEND_URL}/api/chat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                message: body.message,
+                mode: body.mode,
+                persona: body.persona,
+            }),
+        });
 
-    if (!response.ok) {
-      throw new Error("Failed to get chat response")
+        if (!response.ok) {
+            throw new Error(`Backend responded with ${response.status}`);
+        }
+
+        const data = await response.json();
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error("Failed to send chat message:", error);
+        return NextResponse.json(
+            { success: false, error: "Failed to send chat message" },
+            { status: 500 }
+        );
     }
-
-    const data = await response.json()
-    return NextResponse.json(data)
-  } catch (error) {
-    console.error("Error in chat:", error)
-    return NextResponse.json({ success: false, error: "Failed to get chat response" }, { status: 500 })
-  }
 }
