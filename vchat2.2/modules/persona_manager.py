@@ -33,22 +33,34 @@ class PersonaManager:
         """Firebase 초기화"""
         try:
             if not firebase_admin._apps:
-                # Firebase 서비스 계정 키 파일 경로 사용
-                cred_path = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY')
-                if cred_path and os.path.exists(cred_path):
-                    cred = credentials.Certificate(cred_path)
-                    firebase_admin.initialize_app(cred)
+                # Firebase 서비스 계정 키를 환경변수에서 JSON 문자열로 가져오기
+                cred_json = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY')
+                
+                if cred_json:
+                    try:
+                        # JSON 문자열을 파싱하여 credentials 생성
+                        cred_dict = json.loads(cred_json)
+                        cred = credentials.Certificate(cred_dict)
+                        firebase_admin.initialize_app(cred)
+                        print("✅ Firebase 초기화 완료 (JSON 환경변수)")
+                        
+                    except json.JSONDecodeError as e:
+                        print(f"❌ Firebase JSON 파싱 오류: {str(e)}")
+                        raise Exception("Firebase 환경변수 JSON 파싱 실패")
+                
                 else:
-                    # 환경변수에서 Firebase 설정 정보를 사용하여 초기화
+                    # 환경변수에서 Firebase 설정 정보를 사용하여 초기화 (폴백)
                     project_id = os.getenv('NEXT_PUBLIC_FIREBASE_PROJECT_ID')
                     if project_id:
                         # Application Default Credentials 또는 환경변수 기반 초기화
                         firebase_admin.initialize_app(options={
                             'projectId': project_id
                         })
+                        print("✅ Firebase 초기화 완료 (프로젝트 ID)")
                     else:
                         # 기본 Application Default Credentials 사용
                         firebase_admin.initialize_app()
+                        print("✅ Firebase 초기화 완료 (기본 설정)")
             
             self.db = firestore.client()
             print("✅ Firebase 초기화 완료")
