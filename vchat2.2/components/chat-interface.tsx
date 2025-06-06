@@ -74,19 +74,22 @@ export default function ChatInterface({
       <div className="absolute inset-0 bg-gradient-to-br from-pink-100 via-purple-50 to-indigo-100 dark:from-gray-900 dark:via-purple-900/20 dark:to-indigo-900/20" />
       <div className="absolute inset-0 bg-gradient-to-tr from-blue-50/50 via-transparent to-pink-50/50 dark:from-blue-900/10 dark:to-pink-900/10" />
       
-      {/* 메인 컨텐츠 */}
-      <div className="relative z-10 flex flex-col h-full pt-20 pb-4 px-6">
-        {/* 채팅 모드 선택 */}
-        <div className="mb-6">
-          <ChatModeSelector 
-            chatMode={chatMode} 
-            onModeChange={setChatMode} 
-          />
-        </div>
+      {/* 메인 컨텐츠 - 헤더바 밑에서 시작 */}
+      <div className="relative z-10 flex flex-col h-full pt-4 pb-4 px-6" style={{ paddingTop: `${UI_CONFIG.HEADER_HEIGHT_PX + 16}px` }}>
+        
+        {/* 채팅 영역 - 전체 높이 사용 */}
+        <div className="flex-1 flex flex-col backdrop-blur-md bg-white/80 dark:bg-gray-900/80 border border-white/20 dark:border-gray-700/30 rounded-3xl shadow-2xl min-h-0 overflow-hidden relative">
+          
+          {/* 채팅 모드 선택 - 컨테이너 내부 왼쪽 위 */}
+          <div className="absolute top-4 left-4 z-20">
+            <ChatModeSelector 
+              chatMode={chatMode} 
+              onModeChange={setChatMode}
+              compact={true}
+            />
+          </div>
 
-        {/* 채팅 영역 */}
-        <div className="flex-1 flex flex-col backdrop-blur-md bg-white/80 dark:bg-gray-900/80 border border-white/20 dark:border-gray-700/30 rounded-3xl shadow-2xl min-h-0 overflow-hidden">
-          <div className="flex-1 p-6 overflow-y-auto" ref={scrollAreaRef}>
+          <div className="flex-1 p-6 pt-20 overflow-y-auto" ref={scrollAreaRef}>
             {!hasMessages ? (
               <EmptyChatState 
                 selectedPersona={selectedPersona} 
