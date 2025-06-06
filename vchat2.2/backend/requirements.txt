@@ -1,6 +1,5 @@
 openai==1.3.8
 python-dotenv==1.0.0
-pyaudio==0.2.13
 numpy==1.24.3
 elevenlabs>=2.0.0
 pydub>=0.25.1
@@ -19,30 +18,11 @@ pydantic==2.5.0
 firebase-admin==6.2.0
 google-cloud-firestore==2.13.1
 
-# Audio processing
-wave
-
-# Web scraping
-# (requests, beautifulsoup4, lxml are already listed above)
-
-# Text processing
-# (tiktoken is already listed above)
-
-# Environment management
-# (python-dotenv is already listed above)
-
 # CORS middleware
 python-multipart==0.0.6
 
-# Temporary file handling (built-in, but listing for clarity)
-tempfile
-
-# Threading and time (built-in)
-threading
-time
-os
-sys
-json
-
 # Additional utilities
 python-dateutil==2.8.2
+
+# Audio processing for Linux (PyAudio alternative)
+# PyAudio는 Linux에서 문제가 될 수 있으므로 조건부로 처리
