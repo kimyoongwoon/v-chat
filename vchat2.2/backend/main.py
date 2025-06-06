@@ -29,10 +29,11 @@ app = FastAPI(title="VChat Backend API")
 # CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://v-chat-42ah.vercel.app/"],  # Next.js 개발 서버
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://v-chat-42ah.vercel.app"],  # Next.js 개발 서버
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # 전역 변수들
